@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title></title>
+    <style>
+        :root{
+            --panel-height:84px;
+            --gap:24px;
+            --container-width:80%;
+            --box-bg: rgba(255,255,255,0.85);
+            --box-radius:10px;
+        }
+
+        /* Pełne tło: mały SVG powiększony -> efekt pikseli + tęczowe kolory */
+        html,body{
+            height:100%;
+            margin:0;
+        }
+        body{
+            min-height:100vh;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8'><rect width='8' height='1' y='0' fill='%23ff3b30'/><rect width='8' height='1' y='1' fill='%23ff9500'/><rect width='8' height='1' y='2' fill='%23ffd60a'/><rect width='8' height='1' y='3' fill='%2390ff3e'/><rect width='8' height='1' y='4' fill='%23009aff'/><rect width='8' height='1' y='5' fill='%239b59ff'/><rect width='8' height='1' y='6' fill='%23ff2d95'/><rect width='8' height='1' y='7' fill='%23ff7ab6'/></svg>");
+            background-size:500px 500px; /* wielkość "pikseli" */
+            background-repeat: repeat;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+            display:flex;
+            flex-direction:column;
+        }
+
+        /* Górny panel */
+        header{
+            height:var(--panel-height);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:0 20px;
+            box-sizing:border-box;
+            backdrop-filter: blur(2px);
+            background: linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.6));
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+                position:relative;
+        }
+            header .theme-toggle{
+                position:absolute;
+                right:12px;
+                top:10px;
+                border-radius:8px;
+                padding:6px 10px;
+                border:1px solid rgba(0,0,0,0.06);
+                background:rgba(255,255,255,0.9);
+                cursor:pointer;
+                font-size:0.95rem;
+            }
+        header h1{
+            margin:0;
+            font-size:1.1rem;
+            color:#222;
+        }
+
+        /* Główny obszar rośnie, żeby footer był przy dole */
+        main{
+            flex:1;
+            position:relative;
+        }
+        /* Rozciągnij .bottom-row od 20px poniżej nagłówka do dołu strony */
+        .bottom-row{
+            top: calc(var(--panel-height) + 20px);
+            grid-auto-rows: 1fr;
+        }
+
+        /* Każdy box wypełnia pionowo cały przydzielony obszar */
+        .bottom-row > .box{
+            height: 100%;
+            min-height: 0;
+            align-self: stretch;
+        }
+        /* Kontener trzech przedziałków, wyśrodkowany i przy dole z odstępem od krawędzi */
+            .bottom-row{
+            position:absolute;
+            left:50%;
+            transform:translateX(-50%);
+            bottom:36px;
+            width:980px; /* fixed layout width to keep boxes static */
+            max-width:980px;
+            display:grid;
+            grid-template-columns: 220px 480px 280px; /* right column slightly larger */
+            gap:var(--gap);
+            align-items:start;
+            pointer-events:auto;
+        }
+
+        .box{
+            min-height:320px; /* keep boxes from resizing too small */
+            background:var(--box-bg);
+            border-radius:var(--box-radius);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            color:#111;
+            font-size:0.95rem;
+            }
+
+            /* Night theme overrides: pixelated dark background with neon-green stars (kiselowe) */
+            body.night{
+                    /* dark base; star sprites are drawn on the night canvas overlay */
+                    background-image: none;
+                    background-color: #050a1a;
+                    background-size:200px 200px;
+                    background-repeat: repeat;
+                    image-rendering: pixelated;
+                    color: #e6f7d9;
+            }
+            body.night .box{
+                background: rgba(49, 56, 70, 0.56);
+                color: #e6f7d9;
+                border: 5px solid rgba(129, 93, 93, 0.02);
+            }
+            body.night .box.transparent{
+                background: rgba(39, 38, 43, 0.45);
+                border: 10px solid rgba(0,0,0,0.08);
+                color: #e8f09e;
+                backdrop-filter: none;
+            }
+            body.night header{
+                background: linear-gradient(180deg, rgba(9, 13, 27, 0.85), rgba(15, 29, 68, 0.9));
+                border-bottom-color: rgba(255,255,255,0.03);
+            }
+            body.night header .theme-toggle{
+                background: rgba(255,255,255,0.03);
+                color: #cffff0;
+                border:1px solid rgba(255,255,255,0.04);
+            }
+            body.night #vis{ background: rgba(24, 22, 22, 0.45); }
+            padding:10px;
+            box-sizing:border-box;
+            border: 5px solid rgba(0,0,0,0.06);
+            overflow:hidden; /* prevent contents from overflowing box */
+        }
+
+        /* Player styles */
+        .player{ width:100%; max-width:760px; }
+        .player h2{ margin:0 0 8px 0; font-size:1.05rem; text-align:center }
+        .player .controls{ display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap }
+        .player input[type="file"]{ display:block }
+        /* dropzone style left for potential future use, UI now owner-only */
+        .dropzone{ padding:12px 18px; border-radius:8px; background:rgba(255,255,255,0.6); display:none }
+        .buttons{ display:flex; gap:8px }
+        .buttons button{ padding:8px 12px; border-radius:8px; border:1px solid rgba(0,0,0,0.06); background:#fff; cursor:pointer }
+        #playlist{ margin:12px 0 0 0; padding:0; list-style:none; max-height:220px; overflow:auto; border-radius:8px }
+        #playlist li{ padding:8px 10px; border-bottom:1px solid rgba(0,0,0,0.04); cursor:pointer }
+        #playlist li.playing{ background:linear-gradient(90deg, rgba(0,154,255,0.08), rgba(0,154,255,0.02)) }
+        /* Zostawiamy boksy przezroczystszymi jeśli chcesz mocniej widać tło */
+        .box.transparent{
+            background: rgba(255,255,255,0.35);
+            border: 10px solid rgba(255,255,255,0.25);
+            color:#062;
+            backdrop-filter: blur(5px);
+        }
+
+        /* Responsywność */
+        @media (max-width:800px){
+            /* On small screens, allow a single column but keep box height fixed */
+            .bottom-row{
+                width:92%;
+                grid-template-columns: 1fr;
+                bottom:20px;
+            }
+            .box{ min-height:320px; }
+        }
+
+        /* Nawigacja */
+        nav {
+            display: flex;
+            gap: 20px;
+        }
+
+        nav a {
+            text-decoration: none;
+            color: #222;
+            font-weight: 500;
+            font-size: 1.1rem;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        nav a:hover {
+            background: rgba(0,0,0,0.05);
+            color: var(--accent-color);
+        }
+        header {
+            height: var(--panel-height);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-sizing: border-box;
+            backdrop-filter: blur(2px);
+            background: linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.6));
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+            position: relative;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="czat.html">CZAT</a>
+            <a href="ogolne.html">ogolne</a>
+        </nav>
+        <button id="themeToggle" class="theme-toggle" title="Przełącz motyw">🌞</button>
+    </header>
+
+    <main>
+        <div class="bottom-row" aria-label="Dolne przedziałki">
+            <section class="box transparent" id="left">
+                <div id="leftList" style="width:100%">
+                    <h3 style="margin:0 0 8px 0;text-align:center">Lista </h3>
+                    
+                    <ul id="leftPlaylist" style="list-style:none;margin:0;padding:0;max-height:350px;overflow:auto"></ul>
+                </div>
+            </section>
+            <section class="box" id="center">
+                <div class="player">
+                    
+                    <div class="controls">
+                        <div class="buttons">
+                            <button id="prevBtn" title="Previous">⏮</button>
+                            <button id="playBtn" title="Play/Pause">⏯</button>
+                            <button id="nextBtn" title="Next">⏭</button>
+                        </div>
+                        <!-- local file input removed; owner-controlled playlist only -->
+                    </div>
+                    <audio id="audio" preload="metadata"></audio>
+                    <div id="centerTitle" style="text-align:center;font-size:1.05rem;margin-top:12px;color:#111">—</div>
+                </div>
+            </section>
+            <section class="box transparent" id="right">
+                <div style="width:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;box-sizing:border-box;overflow:hidden;padding:8px">
+                    <div id="trackControls" style="width:100%;padding:8px;background:rgba(255,255,255,0.4);border-radius:8px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;align-items:stretch">
+                        <div style="margin-bottom:6px">
+                            <input id="seek" type="range" min="0" max="100" value="0" style="width:100%" />
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+                            <div style="font-size:0.9rem;color:#222">Czas: <span id="timeCur">0</span>s / <span id="timeDur">0</span>s</div>
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:flex-start;gap:8px;margin-top:6px">
+                            <label style="font-size:0.9rem;color:#222">Głośność</label>
+                            <input id="volume" type="range" min="0" max="100" value="80" style="width:140px;max-width:100%" />
+                        </div>
+                    </div>
+                    <canvas id="vis" width="320" height="160" style="image-rendering:pixelated;background:rgba(0,0,0,0.06);border-radius:8px;max-width:100%;height:auto;display:block"></canvas>
+                </div>
+            </section>
+        </div>
+    </main>
+    <script>
+        (function(){
+            const centerTitleEl = document.getElementById('centerTitle');
+            const leftPlaylistEl = document.getElementById('leftPlaylist');
+            const audio = document.getElementById('audio');
+            const playBtn = document.getElementById('playBtn');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            const visCanvas = document.getElementById('vis');
+            const themeToggle = document.getElementById('themeToggle');
+            // controls (now on right panel)
+            const seek = document.getElementById('seek');
+            const vol = document.getElementById('volume');
+            const timeCur = document.getElementById('timeCur');
+            const timeDur = document.getElementById('timeDur');
+
+            // audio context variables (exposed to resume on play)
+            let audioCtx = null;
+            let analyser = null;
+
+            // visualizer shared state (declared early to avoid TDZ when functions run)
+            const bufferLengthRef = { value: 0 };
+            const dataArrayRef = { value: null };
+            let ctx = null;
+
+            let tracks = [];
+            let current = -1;
+            const localFilesMap = new Map();
+            let localBlobUrls = [];
+
+            function buildList(){
+                leftPlaylistEl.innerHTML = '';
+                tracks.forEach((t, idx)=>{
+                    const li2 = document.createElement('li');
+                    li2.textContent = t.name;
+                    li2.style.padding = '6px 8px';
+                    li2.style.borderBottom = '1px solid rgba(0,0,0,0.04)';
+                    li2.addEventListener('click', ()=> playIndex(idx));
+                    leftPlaylistEl.appendChild(li2);
+                });
+                updateUI();
+            }
+
+            function playIndex(i){
+                if(i<0 || i>=tracks.length) return;
+                current = i;
+                const url = tracks[i].url;
+                // Prefer a local blob: URL when user provided matching local files (match by basename)
+                let assigned = false;
+                try{
+                    const trackKey = tracks[i] && tracks[i].normalizedKey ? tracks[i].normalizedKey : '';
+                    if(trackKey && localFilesMap.has(trackKey)){
+                        audio.src = localFilesMap.get(trackKey);
+                        assigned = true;
+                    } else {
+                        // also try matching against name without numbers/diacritics
+                        const alt = tracks[i] && tracks[i].name ? normalizeName(tracks[i].name + '.mp3') : '';
+                        if(alt && localFilesMap.has(alt)){
+                            audio.src = localFilesMap.get(alt);
+                            assigned = true;
+                        }
+                    }
+                }catch(e){ assigned = false }
+                if(!assigned){
+                    if(url && url.startsWith('blob:')){
+                        audio.src = url;
+                    } else if (url && url.indexOf('%') !== -1) {
+                        // already percent-encoded path from build script — assign directly
+                        audio.src = url;
+                    } else {
+                        audio.src = encodeURI(url);
+                    }
+                }
+                // initialize visualizer after the src is assigned (so blob: sources work under file://)
+                initVisualizer();
+                // ensure audio context resumed before playing
+                if(window.audioCtx && window.audioCtx.state === 'suspended') window.audioCtx.resume().catch(()=>{});
+                if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+                audio.play().catch(()=>{});
+                updateUI();
+            }
+
+            function updateUI(){
+                // center title shows current track name
+                const title = (tracks[current] && tracks[current].name) ? tracks[current].name : '—';
+                centerTitleEl.textContent = title;
+                Array.from(leftPlaylistEl.children).forEach((li, idx)=>{
+                    li.style.background = (idx===current) ? 'linear-gradient(90deg, rgba(0,154,255,0.08), rgba(0,154,255,0.02))' : 'transparent';
+                });
+                playBtn.textContent = audio.paused ? '⏯' : '⏸';
+            }
+
+            // Fetch playlist provided by owner. Accept entries that already include path.
+            function useListArray(list){
+                if(!Array.isArray(list) || list.length===0){ addStatus('Brak utworów w music/tracks.json'); return }
+                tracks = list.map(entry=>{
+                    const url = (entry.startsWith('http') || entry.startsWith('/') || entry.startsWith('music/')) ? entry : ('music/' + entry);
+                    const raw = entry.split('/').pop();
+                    // decode percent-encoding, strip extension, remove leading numbers and separators, remove diacritics, uppercase
+                    let decoded = raw;
+                    try{ decoded = decodeURIComponent(raw); }catch(e){}
+                    let name = decoded.replace(/\.[^/.]+$/, '');
+                    // keep decoded basename with extension to match against File.name
+                    const basenameWithExt = decoded;
+                    // remove leading track numbers and common separators like "01 - " or "01# -"
+                    name = name.replace(/^\s*\d+[\s\-._]*[#\s\-._]*/,'');
+                    name = name.replace(/^#\s*/,'');
+                    name = name.replace(/[-_]+/g,' ');
+                    name = name.replace(/\s+/g,' ').trim();
+                    // remove combining diacritics
+                    name = name.normalize ? name.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : name;
+                    name = name.toUpperCase();
+                    const normalizedKey = (basenameWithExt.normalize ? basenameWithExt.normalize('NFD') : basenameWithExt).toLowerCase();
+                    return { name, url, basenameWithExt, normalizedKey };
+                });
+                buildList();
+                playIndex(0);
+            }
+
+            function tryLoadInline(){
+                // try to load a script that defines window.TRACKS_INLINE = [...];
+                if(window.TRACKS_INLINE && Array.isArray(window.TRACKS_INLINE) && window.TRACKS_INLINE.length){
+                    useListArray(window.TRACKS_INLINE);
+                    return;
+                }
+                const s = document.createElement('script');
+                s.src = 'music/tracks-inline.js';
+                s.onload = ()=>{
+                    if(window.TRACKS_INLINE && Array.isArray(window.TRACKS_INLINE) && window.TRACKS_INLINE.length){
+                        useListArray(window.TRACKS_INLINE);
+                    }else{
+                        addStatus('Brak utworów w music/tracks-inline.js');
+                    }
+                };
+                s.onerror = ()=>{
+                    addStatus('Nie można wczytać music/tracks.json ani music/tracks-inline.js');
+                };
+                document.head.appendChild(s);
+            }
+
+            fetch('music/tracks.json').then(r=>{
+                if(!r.ok) throw new Error('no playlist');
+                return r.json();
+            }).then(list=>{
+                useListArray(list);
+            }).catch(()=>{
+                // when opened via file:// many browsers block fetch; try inline script fallback
+                tryLoadInline();
+            });
+
+            // Local folder loader (no upload). Create blob: URLs for selected files and map by normalized name.
+            const localInput = document.getElementById('localFolderInput');
+            const loadLocalBtn = document.getElementById('loadLocalBtn');
+            function normalizeName(n){ try{ return (n.normalize? n.normalize('NFD') : n).toLowerCase(); }catch(e){ return n.toLowerCase(); } }
+            if(loadLocalBtn && localInput){
+                loadLocalBtn.addEventListener('click', ()=> localInput.click());
+                localInput.addEventListener('change', (ev)=>{
+                    // revoke previous blobs
+                    localBlobUrls.forEach(u=>{ try{ URL.revokeObjectURL(u); }catch(e){} });
+                    localBlobUrls = [];
+                    localFilesMap.clear();
+                    const files = Array.from(ev.target.files || []);
+                    files.forEach(f=>{
+                        const key = normalizeName(f.name);
+                        const blobUrl = URL.createObjectURL(f);
+                        localFilesMap.set(key, blobUrl);
+                        localBlobUrls.push(blobUrl);
+                    });
+                    addStatus('Wczytano lokalne pliki (' + localFilesMap.size + '). Jeśli nazwy pasują do playlisty, będą używane lokalne pliki.');
+                    // Attempt autoplay now — this handler is a user gesture (file selection), browsers allow play in this context
+                    (async ()=>{
+                        try{
+                            // prefer current track if set, else first
+                            const idxToPlay = (current>=0 && current < tracks.length) ? current : 0;
+                            playIndex(idxToPlay);
+                            if(window.audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+                            await audio.play();
+                            updateUI();
+                        }catch(err){
+                            addStatus('Autoplay zablokowany przez przeglądarkę — kliknij Play, aby kontynuować.');
+                        }
+                    })();
+                });
+            }
+
+            playBtn.addEventListener('click', ()=>{
+                if(!audio.src){ if(tracks.length) playIndex(0); return }
+                // try to resume audio context first
+                const tryResume = async ()=>{
+                    try{
+                        if(window.audioCtx && window.audioCtx.state === 'suspended') await window.audioCtx.resume();
+                        if(audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+                    }catch(e){ /* ignore */ }
+                };
+                (async ()=>{
+                    await tryResume();
+                    try{
+                        if(audio.paused) await audio.play(); else audio.pause();
+                        updateUI();
+                    }catch(err){
+                        const msg = 'Play failed: '+(err && err.message ? err.message : String(err)) + '. If autoplay was blocked, click Play again.';
+                        addStatus(msg);
+                    }
+                })();
+            });
+
+            // Local file handling (Object URLs) - allow user to drag & drop files into center box
+            // local file UI removed — owner controls playlist via music/tracks.json
+
+            // Volume control (0-100 -> 0.0-1.0)
+            vol.addEventListener('input', ()=>{
+                audio.volume = Number(vol.value) / 100;
+            });
+
+            // Seek handling
+            let seeking = false;
+            seek.addEventListener('input', ()=>{
+                // show scrub value while dragging
+                seeking = true;
+                const v = Number(seek.value);
+                timeCur.textContent = Math.floor(v);
+            });
+            seek.addEventListener('change', ()=>{
+                const v = Number(seek.value);
+                audio.currentTime = v;
+                seeking = false;
+            });
+
+            prevBtn.addEventListener('click', ()=>{
+                if(tracks.length===0) return;
+                const prev = (current<=0) ? tracks.length-1 : current-1;
+                playIndex(prev);
+            });
+
+            nextBtn.addEventListener('click', ()=>{
+                if(tracks.length===0) return;
+                const next = (current+1) % tracks.length;
+                playIndex(next);
+            });
+
+            audio.addEventListener('ended', ()=>{
+                const next = (current+1) % tracks.length;
+                playIndex(next);
+            });
+
+            audio.addEventListener('play', updateUI);
+            audio.addEventListener('pause', updateUI);
+
+            // diagnostics were routed to console (no center status box)
+
+            // ensure AudioContext resumes when playback starts (some browsers require user gesture)
+            audio.addEventListener('play', ()=>{ if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{}); });
+
+            // update time/progress
+            audio.addEventListener('loadedmetadata', ()=>{
+                const d = Math.floor(audio.duration) || 0;
+                timeDur.textContent = d;
+                seek.max = d;
+            });
+            audio.addEventListener('timeupdate', ()=>{
+                const cur = Math.floor(audio.currentTime) || 0;
+                if(!seeking){
+                    seek.value = cur;
+                    timeCur.textContent = cur;
+                }
+            });
+
+            // initialize default volume
+            audio.volume = Number(vol.value) / 100;
+
+            // Visualizer init: attempt to create MediaElementSource and analyser.
+            // If the browser rejects due to cross-origin/file://, we'll catch and show a helpful message.
+            const canvas = visCanvas;
+            ctx = canvas.getContext('2d');
+
+            function addStatus(msg){
+                // avoid showing the old status box — log to console instead
+                try{ console.log('STATUS:', String(msg)); }catch(e){}
+            }
+
+            // Theme toggle: persist in localStorage, default to day
+            (function(){
+                try{
+                    const saved = localStorage.getItem('theme') || 'day';
+                    const startNight = saved === 'night';
+                    if(startNight) document.body.classList.add('night');
+                    // night stars canvas state
+                    let nightCanvas = null;
+                    let nightCtx = null;
+                    let nightStars = [];
+                    let nightAnim = null;
+
+                    function resizeNightCanvas(){
+                        if(!nightCanvas) return;
+                        const dpr = window.devicePixelRatio || 1;
+                        nightCanvas.width = Math.floor(window.innerWidth * dpr);
+                        nightCanvas.height = Math.floor(window.innerHeight * dpr);
+                        nightCanvas.style.width = window.innerWidth + 'px';
+                        nightCanvas.style.height = window.innerHeight + 'px';
+                        if(nightCtx) nightCtx.setTransform(dpr,0,0,dpr,0,0);
+                    }
+
+                    function generateStars(){
+                        nightStars = [];
+                        const count = 50; // fewer, sparse
+                        for(let i=0;i<count;i++){
+                            nightStars.push({
+                                x: Math.random() * window.innerWidth,
+                                y: Math.random() * window.innerHeight,
+                                r: (Math.random() * 1.2) + 0.3, // small radius
+                                base: 0.25 + Math.random() * 0.6,
+                                freq: 0.6 + Math.random() * 1.8,
+                                phase: Math.random() * Math.PI * 2,
+                                flick: 0.2 + Math.random() * 0.6
+                            });
+                        }
+                    }
+
+                    function drawNight(t){
+                        if(!nightCtx) return;
+                        const w = window.innerWidth, h = window.innerHeight;
+                        nightCtx.clearRect(0,0,w,h);
+                        const time = t * 0.001;
+                        for(let s of nightStars){
+                            const a = Math.max(0, Math.min(1, s.base * (0.6 + 0.4 * Math.sin(time * s.freq + s.phase))));
+                            const alpha = a * s.flick;
+                            nightCtx.fillStyle = 'rgba(255,240,120,' + alpha + ')';
+                            // subtle glow
+                            const cx = Math.round(s.x);
+                            const cy = Math.round(s.y);
+                            const arm = 1; // tiny arms
+                            nightCtx.shadowBlur = Math.max(0, s.r * 2);
+                            nightCtx.shadowColor = 'rgba(255,240,120,' + (alpha * 0.9) + ')';
+                            // center pixel
+                            nightCtx.fillRect(cx, cy, 1, 1);
+                            // tiny 1px cross arms (very small)
+                            nightCtx.fillRect(cx - arm, cy, arm, 1);
+                            nightCtx.fillRect(cx + 1, cy, arm, 1);
+                            nightCtx.fillRect(cx, cy - arm, 1, arm);
+                            nightCtx.fillRect(cx, cy + 1, 1, arm);
+                            nightCtx.shadowBlur = 0;
+                        }
+                        nightAnim = requestAnimationFrame(drawNight);
+                    }
+
+                    function ensureNightCanvas(){
+                        if(nightCanvas) return;
+                        nightCanvas = document.createElement('canvas');
+                        nightCanvas.className = 'night-canvas';
+                        // style inline so it works even if CSS is slightly off
+                        nightCanvas.style.position = 'fixed';
+                        nightCanvas.style.left = '0';
+                        nightCanvas.style.top = '0';
+                        nightCanvas.style.width = '100%';
+                        nightCanvas.style.height = '100%';
+                        nightCanvas.style.pointerEvents = 'none';
+                        nightCanvas.style.zIndex = '0';
+                        nightCanvas.style.mixBlendMode = 'screen';
+                        document.body.appendChild(nightCanvas);
+                        nightCtx = nightCanvas.getContext('2d');
+                        window.addEventListener('resize', resizeNightCanvas);
+                        resizeNightCanvas();
+                        generateStars();
+                        if(nightAnim) cancelAnimationFrame(nightAnim);
+                        nightAnim = requestAnimationFrame(drawNight);
+                    }
+
+                    function removeNightCanvas(){
+                        if(nightAnim) cancelAnimationFrame(nightAnim);
+                        nightAnim = null;
+                        if(nightCanvas){ try{ nightCanvas.remove(); }catch(e){} }
+                        nightCanvas = null; nightCtx = null; nightStars = [];
+                    }
+
+                    if(themeToggle){
+                        themeToggle.textContent = document.body.classList.contains('night') ? '🌙' : '🌞';
+                        themeToggle.addEventListener('click', ()=>{
+                            const isNight = document.body.classList.toggle('night');
+                            localStorage.setItem('theme', isNight ? 'night' : 'day');
+                            themeToggle.textContent = isNight ? '🌙' : '🌞';
+                            if(isNight) ensureNightCanvas(); else removeNightCanvas();
+                        });
+                    }
+
+                    if(startNight) ensureNightCanvas();
+                }catch(e){ /* ignore */ }
+            })();
+
+            function resizeCanvasToContainer(){
+                const dpr = window.devicePixelRatio || 1;
+                const cssW = Math.max(32, Math.floor(canvas.clientWidth));
+                const cssH = Math.max(16, Math.floor(canvas.clientHeight));
+                const pixelW = Math.floor(cssW * dpr);
+                const pixelH = Math.floor(cssH * dpr);
+                if(canvas.width !== pixelW || canvas.height !== pixelH){
+                    canvas.width = pixelW;
+                    canvas.height = pixelH;
+                    // reset transform and scale so drawing uses CSS pixel coords
+                    ctx = canvas.getContext('2d');
+                    ctx.setTransform(1,0,0,1,0,0);
+                    ctx.scale(dpr, dpr);
+                }
+            }
+            window.addEventListener('resize', ()=>{ try{ resizeCanvasToContainer(); }catch(e){} });
+
+            function initVisualizer(){
+                // If analyser already exists and a blob source was just assigned,
+                // recreate audioCtx so the MediaElementSource is fresh and same-origin.
+                try{
+                    if(analyser && audio.src && audio.src.startsWith('blob:')){
+                        try{ if(audioCtx && audioCtx.close) audioCtx.close(); }catch(e){}
+                        analyser = null;
+                        audioCtx = null;
+                    }
+                }catch(e){}
+                if(analyser) return true;
+                // On file:// pages we can only create a MediaElementSource for blob: URLs (local files)
+                if(location.protocol === 'file:' && !(audio.src && audio.src.startsWith('blob:'))){
+                    addStatus('Visualizer disabled for file:// unless local files are loaded (use "Wczytaj lokalny folder").');
+                    return false;
+                }
+                try{
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    audioCtx = new AudioCtx();
+                    try{ window.audioCtx = audioCtx }catch(e){}
+                    // create a media element source now that audio.src is set and hopefully same-origin
+                    const srcNode = audioCtx.createMediaElementSource(audio);
+                    analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 256;
+                    analyser.smoothingTimeConstant = 0.8;
+                    srcNode.connect(analyser);
+                    analyser.connect(audioCtx.destination);
+
+                    const bufferLength = analyser.frequencyBinCount;
+                    bufferLengthRef.value = bufferLength;
+                    dataArrayRef.value = new Uint8Array(bufferLength);
+
+                    // configure canvas for pixel look
+                    ctx.imageSmoothingEnabled = false;
+
+                    // resume context on user interaction if needed
+                    document.addEventListener('click', ()=>{ if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }, {once:false});
+                    addStatus('Visualizer initialized.');
+                    return true;
+                }catch(e){
+                    console.warn('Visualizer init failed', e);
+                    addStatus('Visualizer unavailable: ' + (e && e.message ? e.message : String(e)) + '.');
+                    return false;
+                }
+            }
+
+            // Unified draw loop: uses analyser when available, otherwise a pseudo-visualizer while audio plays
+            let _drawStarted = false;
+            // smoothing state for visualizer bars
+            const VIS_BARS = 24; // more bars for a finer pixel feel
+            const prevBars = new Array(VIS_BARS).fill(0);
+            // lower smoothing so bars respond faster
+            const SMOOTHING = 0.58; // lower -> more responsive
+            // spectral flux based onset detector
+            let beatBoost = 0;
+            const BEAT_DECAY = 0.85;
+            const FLUX_MULT = 45; // multiplier to turn flux into boost
+            let prevSpectrum = null;
+            function startDrawLoop(){
+                if(_drawStarted) return; _drawStarted = true;
+                (function draw(){
+                    requestAnimationFrame(draw);
+                    resizeCanvasToContainer();
+                    const cw = canvas.clientWidth;
+                    const ch = canvas.clientHeight;
+                    ctx.clearRect(0,0,cw,ch);
+                    const bars = VIS_BARS;
+                    if(analyser && dataArrayRef.value){
+                        analyser.getByteFrequencyData(dataArrayRef.value);
+                        const step = Math.max(1, Math.floor(bufferLengthRef.value / bars));
+                        // spectral flux onset detection across the spectrum
+                        const specLen = bufferLengthRef.value;
+                        let flux = 0;
+                        if(!prevSpectrum) prevSpectrum = new Uint8Array(specLen);
+                        let sumMag = 0, sumFreq = 0;
+                        for(let b=0;b<specLen;b++){
+                            const cur = dataArrayRef.value[b] || 0;
+                            const prev = prevSpectrum[b] || 0;
+                            const diff = cur - prev;
+                            if(diff > 0) flux += diff;
+                            prevSpectrum[b] = cur;
+                            sumMag += cur;
+                            sumFreq += cur * b;
+                        }
+                        // spectral centroid (band index)
+                        const centroid = sumMag > 0 ? (sumFreq / sumMag) : (specLen * 0.2);
+                        // normalize flux and compute boost
+                        const normFlux = (flux / (specLen * 255));
+                        const boost = Math.min(4, normFlux * FLUX_MULT);
+                        if(boost > beatBoost) beatBoost = boost;
+                        beatBoost = Math.max(0, beatBoost * BEAT_DECAY);
+                        // parameters for attack/release
+                        const ATTACK_ALPHA = 0.28; // faster attack
+                        const RELEASE_ALPHA = 0.90; // slower release
+                        const sigma = 0.28; // centroid weighting spread (as fraction of specLen)
+                        // compute per-bar averages and smooth them to follow melody and rhythm
+                        for(let i=0;i<bars;i++){
+                            let sum = 0;
+                            for(let j=0;j<step;j++) sum += dataArrayRef.value[i*step + j] || 0;
+                            // normalized 0..1
+                            let avg = (sum / step) / 255;
+                            // reduce sensitivity and emphasize stronger values
+                            avg = Math.pow(avg, 1.05);
+                            // compute band center and distance to centroid
+                            const bandCenter = (i + 0.5) * specLen / bars;
+                            const dist = Math.abs(bandCenter - centroid) / specLen; // 0..1
+                            const weight = Math.exp(- (dist*dist) / (2 * sigma * sigma));
+                            // apply beatBoost modulated by proximity to centroid (melody emphasis)
+                            const boosted = avg * (1 + beatBoost * weight);
+                            // attack/release smoothing: fast attack, slower release
+                            if(boosted > prevBars[i]){
+                                prevBars[i] = prevBars[i] * ATTACK_ALPHA + boosted * (1 - ATTACK_ALPHA);
+                            }else{
+                                prevBars[i] = prevBars[i] * RELEASE_ALPHA + boosted * (1 - RELEASE_ALPHA);
+                            }
+                        }
+                        // draw bars based on smoothed values (HSL coloring, beat glow)
+                        for(let i=0;i<bars;i++){
+                            const val = Math.min(1, prevBars[i]);
+                            const h = Math.max(0, Math.round(val * ch));
+                            const x = Math.floor((i / bars) * cw);
+                            const w = Math.ceil(cw / bars);
+                            // hue rotates slightly across bands, lightness follows energy
+                            const hue = Math.round(210 - (i / bars) * 120 + val * 60);
+                            for(let py=0; py<h; py++){
+                                const y = ch - 1 - py;
+                                const light = Math.round(30 + (py / ch) * 60);
+                                ctx.fillStyle = 'hsl(' + hue + ', 80%, ' + light + '%)';
+                                ctx.fillRect(x, y, w, 1);
+                            }
+                        }
+                        // soft beat glow overlay when beatBoost is significant
+                        if(beatBoost > 0.6){
+                            const glowAlpha = Math.min(0.12, 0.12 * beatBoost);
+                            ctx.fillStyle = 'rgba(255,255,255,' + glowAlpha + ')';
+                            ctx.fillRect(0, 0, cw, ch * 0.06);
+                        }
+                    }else{
+                        // gentler pseudo-visualizer: slow pulsing based on audio state and volume
+                        const playing = !audio.paused && audio.readyState > 0;
+                        const base = Math.min(1, audio.volume || 0.8) * 0.6; // scale with volume
+                        for(let i=0;i<bars;i++){
+                            const phase = (audio.currentTime || 0) * (0.6 + i*0.025);
+                            const beat = playing ? Math.abs(Math.sin(phase)) * base : 0.02;
+                            prevBars[i] = prevBars[i] * SMOOTHING + beat * (1 - SMOOTHING);
+                            const hVal = Math.max(0, Math.round(prevBars[i] * ch));
+                            const x = Math.floor((i / bars) * cw);
+                            const w = Math.ceil(cw / bars);
+                            const hue = Math.round(210 - (i / bars) * 120 + prevBars[i] * 60);
+                            for(let py=0; py<hVal; py++){
+                                const y = ch - 1 - py;
+                                const light = Math.round(30 + (py / ch) * 60);
+                                ctx.fillStyle = 'hsl(' + hue + ', 78%, ' + light + '%)';
+                                ctx.fillRect(x, y, w, 1);
+                            }
+                        }
+                    }
+                })();
+            }
+
+            // start loop immediately so user sees motion
+            startDrawLoop();
+        })();
+    </script>
+</body>
+</html>
